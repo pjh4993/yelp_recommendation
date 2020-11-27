@@ -13,6 +13,7 @@ import logging
 import random
 from datetime import datetime
 import torch
+from tqdm import tqdm
 
 """
 This file contains the default logic to build a dataloader for training or testing.
@@ -30,8 +31,14 @@ def get_yelp_dataset_dicts(
     cfg, is_train=True 
 ):
     yelp_json_root = os.path.join(cfg.DATA_ROOT, 'yelp_academic_dataset_review.json')
-    split_id = os.path.join(cfg.DATA_ROOT, 'train.txt' if is_train else 'test.txt')
+    split_id = os.path.join(cfg.DATA_ROOT, 'train.txt' if is_train else 'test.txt') if cfg.IS_PREPROCESS is False else None
     dataset_dicts = None
+    with open(yelp_json_root, 'r') as yelp_json_file:
+        dataset_dicts = [json.loads(json_object) for json_object in tqdm(yelp_json_file.readlines(), desc='read yelp json file')]
+    
+    if split_id is not None:
+        with open(split_id, 'r') as split_id_file:
+            dataset_dicts = dataset_dicts[[int(idx) for idx in split_id_file.readlines()]]
     return dataset_dicts
 
 
@@ -118,22 +125,6 @@ def build_yelp_train_loader(cfg, mapper):
 
 
 def build_yelp_test_loader(cfg, mapper):
-    """
-    Similar to `build_detection_train_loader`.
-    But this function uses the given `dataset_name` argument (instead of the names in cfg),
-    and uses batch size 1.
-
-    Args:
-        cfg: a detectron2 CfgNode
-        dataset_name (str): a name of the dataset that's available in the DatasetCatalog
-        mapper (callable): a callable which takes a sample (dict) from dataset
-           and returns the format to be consumed by the model.
-           By default it will be `DatasetMapper(cfg, False)`.
-
-    Returns:
-        DataLoader: a torch DataLoader, that loads the given detection
-        dataset, with test-time transformation and batching.
-    """
     dataset_dicts = get_yelp_dataset_dicts(
         cfg, is_train=False
     )

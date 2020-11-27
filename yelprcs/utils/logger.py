@@ -100,7 +100,7 @@ def setup_logger(
 # with the same file name can safely write to the same file.
 @functools.lru_cache(maxsize=None)
 def _cached_log_stream(filename):
-    return os.open(filename, "a")
+    return open(filename, "a")
 
 
 """

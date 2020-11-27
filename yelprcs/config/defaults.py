@@ -9,6 +9,17 @@ import sys
 
 _C = CN()
 _C.OUTPUT_DIR = ""
+_C.DATA_ROOT = "yelp_recommendation/datasets/"
+_C.SEED = -1
+_C.CUDNN_BENCHMARK = False 
+_C.IS_TRAIN = True
+_C.IS_PREPROCESS = True
+
+_C.DATASET_MAPPER = CN()
+_C.DATASET_MAPPER.ATTRIB_DICT = []
+
+_C.DATALOADER = CN()
+_C.DATALOADER.NUM_WORKERS = 4
 
 def get_cfg():
     return _C.clone()
@@ -31,7 +42,7 @@ def default_setup(cfg, args):
     if hasattr(args, "config_file") and args.config_file != "":
         logger.info(
             "Contents of args.config_file={}:\n{}".format(
-                args.config_file, os.open(args.config_file, "r").read()
+                args.config_file, open(args.config_file, "r").read()
             )
         )
 
@@ -40,7 +51,7 @@ def default_setup(cfg, args):
         # Note: some of our scripts may expect the existence of
         # config.yaml in output directory
         path = os.path.join(output_dir, "config.yaml")
-        with os.open(path, "w") as f:
+        with open(path, "w") as f:
             f.write(cfg.dump())
         logger.info("Full config saved to {}".format(path))
 
@@ -87,3 +98,16 @@ Run on single machine:
         nargs=argparse.REMAINDER,
     )
     return parser
+
+def setup(args):
+    """
+    Create configs and perform basic setups.
+    """
+    cfg = get_cfg()
+    if hasattr(args, 'config_file'):
+        cfg.merge_from_file(args.config_file)
+    if hasattr(args, 'opts'):
+        cfg.merge_from_list(args.opts)
+    cfg.freeze()
+    default_setup(cfg, args)
+    return cfg
