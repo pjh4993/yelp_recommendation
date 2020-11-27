@@ -1,1 +1,2 @@
-others/
+.vscode/
+*__pycache__*
