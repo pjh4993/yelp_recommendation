@@ -1,9 +1,0 @@
-OUTPUT_DIR: "yelp_recommendation/outputs/base_config"
-DATA_ROOT: "yelp_recommendation/datasets/"
-SEED: 0
-IS_TRAIN: False
-IS_PREPROCESS: True
-DATASET_MAPPER:
-  ATTRIB_DICT: ['user_id', 'business_id', 'stars']
-DATALOADER:
-  NUM_WORKERS: 4

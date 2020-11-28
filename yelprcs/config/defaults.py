@@ -1,5 +1,4 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-from yacs.config import CfgNode as CN
 from ..utils.comm import get_rank, get_world_size
 from ..utils import setup_logger, seed_all_rng, is_main_process
 import torch
@@ -7,21 +6,8 @@ import argparse
 import os
 import sys
 
-_C = CN()
-_C.OUTPUT_DIR = ""
-_C.DATA_ROOT = "yelp_recommendation/datasets/"
-_C.SEED = -1
-_C.CUDNN_BENCHMARK = False 
-_C.IS_TRAIN = True
-_C.IS_PREPROCESS = True
-
-_C.DATASET_MAPPER = CN()
-_C.DATASET_MAPPER.ATTRIB_DICT = []
-
-_C.DATALOADER = CN()
-_C.DATALOADER.NUM_WORKERS = 4
-
 def get_cfg():
+    from .base_configs import _C
     return _C.clone()
 
 def default_setup(cfg, args):

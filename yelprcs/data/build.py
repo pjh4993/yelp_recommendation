@@ -30,15 +30,19 @@ __all__ = [
 def get_yelp_dataset_dicts(
     cfg, is_train=True 
 ):
-    yelp_json_root = os.path.join(cfg.DATA_ROOT, 'yelp_academic_dataset_review.json')
-    split_id = os.path.join(cfg.DATA_ROOT, 'train.txt' if is_train else 'test.txt') if cfg.IS_PREPROCESS is False else None
+    yelp_json_root = os.path.join(cfg.DATA_ROOT, cfg.DATA_JSON)
+    split_id = os.path.join(cfg.DATA_ROOT, 'train.txt' if is_train else 'test.txt') if cfg.IS_PREPROCESSED is True else None
     dataset_dicts = None
+
     with open(yelp_json_root, 'r') as yelp_json_file:
-        dataset_dicts = [json.loads(json_object) for json_object in tqdm(yelp_json_file.readlines(), desc='read yelp json file')]
-    
-    if split_id is not None:
-        with open(split_id, 'r') as split_id_file:
-            dataset_dicts = dataset_dicts[[int(idx) for idx in split_id_file.readlines()]]
+        if cfg.IS_PREPROCESSED is False:
+            dataset_dicts = [json.loads(json_object) for json_object in tqdm(yelp_json_file.readlines(), desc='read yelp json file')]
+        else:
+            dataset_dicts = json.load(yelp_json_file)
+            review_dicts = dataset_dicts['reviews']
+            hash_to_idx = dataset_dicts['hash_to_idx']
+            with open(split_id, 'r') as split_id_file:
+                dataset_dicts = dataset_dicts[[int(idx) for idx in split_id_file.readlines()]]
     return dataset_dicts
 
 
@@ -82,7 +86,7 @@ def build_batch_data_loader(
         worker_init_fn=worker_init_reset_seed,
     )
 
-def build_yelp_train_loader(cfg, mapper):
+def build_yelp_train_loader(cfg, mapper=lambda x : x):
     """
     A data loader is created by the following steps:
 
