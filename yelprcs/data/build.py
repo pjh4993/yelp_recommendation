@@ -37,7 +37,7 @@ def get_yelp_dataset_dicts(
 
     with open(yelp_json_root, 'r') as yelp_json_file:
         if cfg.IS_PREPROCESSED is False:
-            dataset_dicts = [json.loads(json_object) for json_object in tqdm(yelp_json_file.readlines()[:1000], desc='read yelp json file')]
+            dataset_dicts = [json.loads(json_object) for json_object in tqdm(yelp_json_file.readlines(), desc='read yelp json file')]
         else:
             dataset_dicts = json.load(yelp_json_file)
             review_dicts = dataset_dicts['reviews']
@@ -145,7 +145,7 @@ def build_yelp_test_loader(cfg, mapper=None):
     #sampler = TrainingSampler(len(dataset))
     # Always use 1 image per worker during inference since this is the
     # standard when reporting inference time in papers.
-    batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, 250, drop_last=False)
+    batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, cfg.SOLVER.REVIEW_PER_BATCH, drop_last=False)
 
     data_loader = torch.utils.data.DataLoader(
         dataset,

@@ -62,7 +62,7 @@ def split_dataset(processed_dataset, split_attrib):
     instance_per_attrib = processed_dataset['id_to_instance'][split_attrib]
     for _id, instances in tqdm(instance_per_attrib.items(), desc='split'):
         np.random.shuffle(instances)
-        num_train = int(0.5 * len(instances))
+        num_train = int(0.7 * len(instances))
         if num_train == 0:
             num_train += 1
         train_split.extend(instances[:num_train])
@@ -81,7 +81,7 @@ def analysis_dataset(processed_dataset, split):
         user_id = review['user_id']
         business_id = review['business_id']
         mean_table[user_id,business_id] = review['stars']
-    
+
     whole_mean = mean_table[mean_table != 0].mean()
     user_mean = np.sum(mean_table, axis=1) / (np.sum(mean_table != 0 , axis=1) + 1e-5) - whole_mean
     business_mean = np.sum(mean_table, axis=0) / (np.sum(mean_table != 0 , axis=0) + 1e-5) - whole_mean
