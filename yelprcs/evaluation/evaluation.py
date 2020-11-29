@@ -14,8 +14,9 @@ class YelpEvaluator:
     def evaluate(self):
         return {'rmse': np.mean(self.rmse)}
 
-    def processs(self, input, output):
-        self.rmse.append(np.sqrt((input['stars'] - output) ** 2).item())
+    def process(self, input, output):
+        stars = np.array([x['stars'] for x in input])
+        self.rmse.extend(np.sqrt((stars - output) ** 2).tolist())
 
 
 @contextmanager
@@ -81,5 +82,6 @@ def inference_on_dataset(model, data_loader, evaluator):
     # Replace it by an empty dict instead to make it easier for downstream code to handle
     if results is None:
         results = {}
+    print(results)
     return results
 

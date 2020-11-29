@@ -41,7 +41,6 @@ def get_yelp_dataset_dicts(
         else:
             dataset_dicts = json.load(yelp_json_file)
             review_dicts = dataset_dicts['reviews']
-            #hash_to_idx = dataset_dicts['id_to_instance']
             with open(split_id, 'r') as split_id_file:
                 dataset_dicts['reviews'] = [review_dicts[int(idx)] for idx in split_id_file.readlines()]
 
@@ -135,10 +134,11 @@ def build_yelp_test_loader(cfg, mapper=None):
         cfg, is_train=False
     )
 
-    dataset = DatasetFromList(dataset_dicts)
+    dataset = DatasetFromList(dataset_dicts['reviews'])
 
     if mapper is None:
-        mapper = lambda x: x
+        mapper = build_yelp_mapper(cfg, dataset_dicts['statistics'])
+
     dataset = MapDataset(dataset, mapper)
 
     sampler = InferenceSampler(len(dataset))

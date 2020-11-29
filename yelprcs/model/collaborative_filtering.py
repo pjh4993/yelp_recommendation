@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torch.nn.parameter import Parameter
 from torch.nn import Linear
+import numpy as np
 
 class CollaborativeFiltering(nn.Module):
     def __init__(self, cfg):
@@ -21,7 +22,6 @@ class CollaborativeFiltering(nn.Module):
 
         self.user_subnet = None
         self.item_subnet = None
-        self.is_training = cfg.IS_TRAIN
         self.loss_func = nn.MSELoss(reduction='mean')
 
     def process_batch(self, user_batch, item_batch):
@@ -50,12 +50,16 @@ class CollaborativeFiltering(nn.Module):
 
         rating_matrix = self.process_batch(user_batch, item_batch).reshape(-1,1)
 
-        if self.is_training:
+        if self.training:
             rating_gt = ((torch.tensor(rating_gt) - torch.tensor(mean_list)) / 5).reshape(-1,1)
             loss = self.losses(rating_gt, rating_matrix)
             return loss
         else:
-            return rating_matrix
+            rating_matrix = rating_matrix.cpu().numpy()
+            output =  rating_matrix.flatten() * 5 + np.array(mean_list)
+            output = np.clip(output, 0, 5)
+            return output
+
 
     def losses(self, gt, pred):
         gt = gt.to(device=pred.device)

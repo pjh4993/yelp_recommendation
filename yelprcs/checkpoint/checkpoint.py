@@ -23,6 +23,8 @@ class YelpCheckpointer:
                 self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
                 self.scheduler.load_state_dict(checkpoint['scheduler_dict'])
                 self.iteration = checkpoint['iteration']
+            else:
+                self.model.eval()
 
     def save_model(self, curr_iter):
         self.iteration = curr_iter
