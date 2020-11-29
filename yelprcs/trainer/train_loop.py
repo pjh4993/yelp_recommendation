@@ -130,7 +130,7 @@ class TrainerBase:
 
         self.iter = self.start_iter = start_iter
         self.max_iter = max_iter
-
+ 
         #with EventStorage(start_iter) as self.storage:
         try:
             self.before_train()
@@ -238,6 +238,7 @@ class SimpleTrainer(TrainerBase):
         ) if losses.device.type == "cuda" else _nullcontext():
             metrics_dict = loss_dict
             metrics_dict["data_time"] = data_time
+            self.metrics_dict = metrics_dict
             #self._write_metrics(metrics_dict)
             self._detect_anomaly(losses, loss_dict)
 

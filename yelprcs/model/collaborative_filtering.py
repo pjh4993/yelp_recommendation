@@ -22,28 +22,45 @@ class CollaborativeFiltering(nn.Module):
         self.user_subnet = None
         self.item_subnet = None
         self.is_training = cfg.IS_TRAIN
+        self.loss_func = nn.SmoothL1Loss(reduction='mean')
     
     def process_batch(self, user_batch, item_batch):
         return NotImplementedError
 
+    def extract_batch(self, batched_inputs):
+        user_id_list = []
+        item_id_list = []
+        rating_gt = []
+        mean_list = []
+        for inputs in batched_inputs:
+            user_id_list.append(inputs['user_id'])
+            item_id_list.append(inputs['business_id'])
+            if 'stars' in inputs:
+                rating_gt.append(inputs['stars'])
+            mean_list.append(inputs['whole_mean'] + inputs['user_mean'] + inputs['business_mean'])
+        
+        return user_id_list, item_id_list, rating_gt, mean_list
+
     def forward(self, batched_inputs):
         
-        user_id_list = batched_inputs['user_id_list']
-        item_id_list = batched_inputs['item_id_list']
+        user_id_list, item_id_list, rating_gt, mean_list = self.extract_batch(batched_inputs)
 
         user_batch = self.user_hidden_emb[user_id_list]
         item_batch = self.item_hidden_emb[item_id_list]
 
-        rating_matrix = self.process_batch(user_batch, item_batch)
+        rating_matrix = self.process_batch(user_batch, item_batch).reshape(-1,1)
 
         if self.is_training:
-            rating_gt = batched_inputs['rating_gt']
+            rating_gt = ((torch.tensor(rating_gt) - torch.tensor(mean_list)) / 5).reshape(-1,1)
             loss = self.losses(rating_gt, rating_matrix)
-
             return loss
         else:
-
             return rating_matrix
+
+    def losses(self, gt, pred):
+        gt = gt.to(device=pred.device)
+        loss =  self.loss_func(gt, pred)
+        return {'loss': loss}
 
 @MODEL_REGISTRY.register()
 class NaiveCF(CollaborativeFiltering):
@@ -56,7 +73,7 @@ class NaiveCF(CollaborativeFiltering):
         user_batch = self.user_subnet(user_emb_batch)
         item_batch = self.item_subnet(item_emb_batch)
 
-        rating_matrix = (user_batch * item_batch).sigmoid()
+        rating_matrix = torch.diagonal((user_batch.matmul(item_batch.transpose(1,0))).tanh())
 
         return rating_matrix
 
@@ -89,7 +106,7 @@ class SharedCF(NaiveCF):
         for modules in [self.user_subnet, self.item_subnet]:
             for layer in modules.modules():
                 if isinstance(layer, nn.Linear):
-                    torch.nn.init.kaiming_normal_(layer.weight)
+                    torch.nn.init.kaiming_uniform_(layer.weight)
 
 @MODEL_REGISTRY.register()
 class AttentiveCF(SharedCF):
@@ -112,7 +129,7 @@ class AttentiveCF(SharedCF):
 
                 for layer in attention_subnet[attrib]:
                     if isinstance(layer, nn.Linear):
-                        torch.nn.init.kaiming_normal_(layer.weight)
+                        torch.nn.init.kaiming_uniform_(layer.weight)
 
         self.user_attention = user_attention
         self.item_attention = item_attention

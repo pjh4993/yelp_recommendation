@@ -4,7 +4,7 @@ from ..utils import setup_logger, comm
 from ..checkpoint import YelpCheckpointer
 from .train_loop import SimpleTrainer
 from ..data import build_yelp_train_loader, build_yelp_test_loader
-from .hooks import LRScheduler, PeriodicCheckpointer, EvalHook
+from .hooks import LRScheduler, PeriodicCheckpointer, EvalHook, PeriodicWriter
 from ..model import build_model
 from ..solver import build_optimizer, build_lr_scheduler
 import logging
@@ -97,36 +97,10 @@ class YelpTrainer(SimpleTrainer):
         # Do evaluation after checkpointer, because then if it fails,
         # we can use the saved checkpoint to debug.
         ret.append(EvalHook(cfg.TEST.EVAL_PERIOD, test_and_save_results))
+        if comm.is_main_process():
+            # run writers in the end, so that evaluation metrics are written
+            ret.append(PeriodicWriter(period=20))
         return ret
-
-    def build_writers(self):
-        """
-        Build a list of writers to be used. By default it contains
-        writers that write metrics to the screen,
-        a json file, and a tensorboard event file respectively.
-        If you'd like a different list of writers, you can overwrite it in
-        your trainer.
-
-        Returns:
-            list[EventWriter]: a list of :class:`EventWriter` objects.
-
-        It is now implemented by:
-        ::
-            return [
-                CommonMetricPrinter(self.max_iter),
-                JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-                TensorboardXWriter(self.cfg.OUTPUT_DIR),
-            ]
-
-        # Here the default print/log frequency of each writer is used.
-        return [
-            # It may not always print what you want to see, since it prints "common" metrics only.
-            CommonMetricPrinter(self.max_iter),
-            JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-            TensorboardXWriter(self.cfg.OUTPUT_DIR),
-        ]
-        """
-        pass
 
     def train(self):
         """

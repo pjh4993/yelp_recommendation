@@ -1,5 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import logging
+from yelp_recommendation.yelprcs.data.dataset_mapper import build_yelp_mapper
 import numpy as np
 import torch.utils.data
 import os
@@ -40,9 +41,10 @@ def get_yelp_dataset_dicts(
         else:
             dataset_dicts = json.load(yelp_json_file)
             review_dicts = dataset_dicts['reviews']
-            hash_to_idx = dataset_dicts['hash_to_idx']
+            #hash_to_idx = dataset_dicts['id_to_instance']
             with open(split_id, 'r') as split_id_file:
-                dataset_dicts = dataset_dicts[[int(idx) for idx in split_id_file.readlines()]]
+                dataset_dicts['reviews'] = [review_dicts[int(idx)] for idx in split_id_file.readlines()]
+
     return dataset_dicts
 
 
@@ -86,7 +88,9 @@ def build_batch_data_loader(
         worker_init_fn=worker_init_reset_seed,
     )
 
-def build_yelp_train_loader(cfg, mapper=lambda x : x):
+
+
+def build_yelp_train_loader(cfg, mapper=None):
     """
     A data loader is created by the following steps:
 
@@ -110,14 +114,12 @@ def build_yelp_train_loader(cfg, mapper=lambda x : x):
     dataset_dicts = get_yelp_dataset_dicts(
         cfg, is_train=True
     )
-    dataset = DatasetFromList(dataset_dicts, copy=False)
+    dataset = DatasetFromList(dataset_dicts['reviews'], copy=False)
 
+    if mapper is None:
+        mapper = build_yelp_mapper(cfg, dataset_dicts['statistics'])
     dataset = MapDataset(dataset, mapper)
 
-    sampler_name = cfg.DATALOADER.SAMPLER_TRAIN
-    logger = logging.getLogger(__name__)
-    logger.info("Using training sampler {}".format(sampler_name))
-    # TODO avoid if-else?
     sampler = TrainingSampler(len(dataset))
 
     return build_batch_data_loader(
@@ -141,7 +143,7 @@ def build_yelp_test_loader(cfg, mapper):
     #sampler = TrainingSampler(len(dataset))
     # Always use 1 image per worker during inference since this is the
     # standard when reporting inference time in papers.
-    batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, 1, drop_last=False)
+    batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, 250, drop_last=False)
 
     data_loader = torch.utils.data.DataLoader(
         dataset,

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 from collections import Counter
+import logging
 from ..checkpoint import YelpPeriodicCheckpointer
 from ..utils import comm
 
@@ -10,6 +11,7 @@ __all__ = [
     "CallbackHook",
     "PeriodicCheckpointer",
     "LRScheduler",
+    "PeriodicWriter",
 ]
 
 """
@@ -145,3 +147,41 @@ class EvalHook(HookBase):
         # therefore we clean it to avoid circular reference in the end
         del self._func
 
+class PeriodicWriter(HookBase):
+    """
+    Write events to EventStorage (by calling ``writer.write()``) periodically.
+
+    It is executed every ``period`` iterations and after the last iteration.
+    Note that ``period`` does not affect how data is smoothed by each writer.
+    """
+
+    def __init__(self, period=20):
+        """
+        Args:
+            writers (list[EventWriter]): a list of EventWriter objects
+            period (int):
+        """
+        self._period = period
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+
+    def after_step(self):
+        if (self.trainer.iter + 1) % self._period == 0 or (
+            self.trainer.iter == self.trainer.max_iter - 1
+        ):
+            lr = self.trainer.optimizer.param_groups[0]['lr']
+            iteration = self.trainer.iter
+            losses = self.trainer.metrics_dict
+
+            self.logger.warning(
+            "iter: {iter}  {losses} lr: {lr:.5f}".format(
+                iter=iteration,
+                losses="  ".join(
+                    [
+                        "{}: {:.3f}".format(k, v)
+                        for k, v in losses.items()
+                    ]
+                ),
+                lr=lr,
+            )
+        )

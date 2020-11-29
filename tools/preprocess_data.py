@@ -33,8 +33,6 @@ class YelpPreprocessMapper(DatasetMapper):
         self.attrib_dict = cfg.DATASET_MAPPER.ATTRIB_DICT
         self.hook = hook
 
-
-
     def __call__(self, dataset_dict):
         dataset_dict = {k : v for k,v in dataset_dict.items() if k in self.attrib_dict}
         if self.hook is not None:
@@ -42,10 +40,9 @@ class YelpPreprocessMapper(DatasetMapper):
         return dataset_dict
 
 def change_hash_to_int(dataset_dicts, idx, attrib_names, memory):
-    for dataset_dict in dataset_dicts:
+    for d_id, dataset_dict in enumerate(dataset_dicts):
         for attrib in attrib_names:
             if attrib == 'stars':
-                memory['whole_mean'] += dataset_dict['stars']
                 continue
             hash_id = dataset_dict[attrib]
             if hash_id not in memory['hash_to_int'][attrib]:
@@ -55,7 +52,7 @@ def change_hash_to_int(dataset_dicts, idx, attrib_names, memory):
             _id = memory['hash_to_int'][attrib][hash_id]
             dataset_dict[attrib] = _id
 
-            memory['id_to_instance'][attrib][_id].append(idx)
+            memory['id_to_instance'][attrib][_id].append(idx * memory['batch_size'] + d_id)
         memory['reviews'].append(dataset_dict)
 
 def split_dataset(processed_dataset, split_attrib):
@@ -63,7 +60,7 @@ def split_dataset(processed_dataset, split_attrib):
     valid_split = []
 
     instance_per_attrib = processed_dataset['id_to_instance'][split_attrib]
-    for _id, instances in instance_per_attrib.items():
+    for _id, instances in tqdm(instance_per_attrib.items(), desc='split'):
         np.random.shuffle(instances)
         num_train = int(0.5 * len(instances))
         if num_train == 0:
@@ -73,15 +70,33 @@ def split_dataset(processed_dataset, split_attrib):
 
     return {'train': train_split, 'valid':valid_split}
 
+def analysis_dataset(processed_dataset, split):
+    reviews = processed_dataset['reviews']
+    reviews = [reviews[id] for id in split]
+    user_id_size = len(processed_dataset['hash_to_int']['user_id'])
+    business_id_size = len(processed_dataset['hash_to_int']['business_id'])
+
+    mean_table = np.zeros((user_id_size, business_id_size))
+    for review in tqdm(reviews, desc='calculating mean table'):
+        user_id = review['user_id']
+        business_id = review['business_id']
+        mean_table[user_id,business_id] = review['stars']
+    
+    whole_mean = mean_table[mean_table != 0].mean()
+    user_mean = np.sum(mean_table, axis=1) / (np.sum(mean_table != 0 , axis=1) + 1e-5) - whole_mean
+    business_mean = np.sum(mean_table, axis=0) / (np.sum(mean_table != 0 , axis=0) + 1e-5) - whole_mean
+    return {'whole_mean' : whole_mean, 'user_mean' : user_mean.tolist(), 'business_mean' : business_mean.tolist()}
+
 def main(args):
     cfg = setup(args)
     preprocess_mapper = YelpPreprocessMapper(cfg, None)
     data_loader = build_yelp_test_loader(cfg, preprocess_mapper)
 
-    processed_dataset = {'whole_mean':0.0,
+    processed_dataset = {
                     'hash_to_int': {},
                     'id_to_instance': {},
-                    'reviews':[]}
+                    'reviews':[],
+                    'batch_size': 250}
     for attrib in preprocess_mapper.attrib_dict:
         if attrib == 'stars':
             continue
@@ -92,6 +107,8 @@ def main(args):
         change_hash_to_int(inputs, idx, preprocess_mapper.attrib_dict, processed_dataset)
 
     split_idx = split_dataset(processed_dataset, 'user_id')
+
+    processed_dataset['statistics'] = analysis_dataset(processed_dataset, split_idx['train'])
 
     hash_to_idx = processed_dataset['hash_to_int']
 
