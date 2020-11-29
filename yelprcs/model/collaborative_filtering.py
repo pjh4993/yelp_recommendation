@@ -22,8 +22,8 @@ class CollaborativeFiltering(nn.Module):
         self.user_subnet = None
         self.item_subnet = None
         self.is_training = cfg.IS_TRAIN
-        self.loss_func = nn.SmoothL1Loss(reduction='mean')
-    
+        self.loss_func = nn.MSELoss(reduction='mean')
+
     def process_batch(self, user_batch, item_batch):
         return NotImplementedError
 
@@ -38,11 +38,11 @@ class CollaborativeFiltering(nn.Module):
             if 'stars' in inputs:
                 rating_gt.append(inputs['stars'])
             mean_list.append(inputs['whole_mean'] + inputs['user_mean'] + inputs['business_mean'])
-        
+
         return user_id_list, item_id_list, rating_gt, mean_list
 
     def forward(self, batched_inputs):
-        
+
         user_id_list, item_id_list, rating_gt, mean_list = self.extract_batch(batched_inputs)
 
         user_batch = self.user_hidden_emb[user_id_list]
@@ -133,7 +133,7 @@ class AttentiveCF(SharedCF):
 
         self.user_attention = user_attention
         self.item_attention = item_attention
-    
+
     def process_batch(self, user_emb_batch, item_emb_batch):
         user_batch = self.user_subnet(user_emb_batch)
         item_batch = self.item_subnet(item_emb_batch)
