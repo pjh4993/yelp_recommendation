@@ -22,7 +22,8 @@ class CollaborativeFiltering(nn.Module):
 
         self.user_subnet = None
         self.item_subnet = None
-        self.loss_func = nn.MSELoss(reduction='mean')
+        #self.loss_func = nn.MSELoss(reduction='mean')
+        self.loss_func = nn.SmoothL1Loss(reduction='mean')
 
     def process_batch(self, user_batch, item_batch):
         return NotImplementedError
@@ -86,7 +87,7 @@ class SharedCF(NaiveCF):
     def __init__(self, cfg):
         super().__init__(cfg)
 
-        num_fc = cfg.SHARED_CF.NUM_FC
+        num_fc = cfg.MODEL.SHARED_CF.NUM_FC
 
         user_subnet = []
         item_subnet = []

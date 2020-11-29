@@ -1,0 +1,20 @@
+OUTPUT_DIR: "yelp_recommendation/output/base_config"
+DATA_ROOT: "yelp_recommendation/datasets/"
+#DATA_JSON: "yelp_academic_dataset_review.json"
+DATA_JSON: "processed_yelp_dataset_review.json"
+SEED: 0
+IS_TRAIN: True
+IS_PREPROCESSED: True
+DATASET_MAPPER:
+  ATTRIB_DICT: ['user_id', 'business_id', 'stars']
+DATALOADER:
+  NUM_WORKERS: 8
+MODEL:
+  NAME: 'SharedCF'
+  SHARED_CF:
+    NUM_FC: 2
+STATISTICS:
+  USER_SIZE: 252898
+  ITEM_SIZE: 41958
+SOLVER:
+  REVIEW_PER_BATCH: 512
