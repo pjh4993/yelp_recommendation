@@ -36,7 +36,7 @@ def get_yelp_dataset_dicts(
 
     with open(yelp_json_root, 'r') as yelp_json_file:
         if cfg.IS_PREPROCESSED is False:
-            dataset_dicts = [json.loads(json_object) for json_object in tqdm(yelp_json_file.readlines(), desc='read yelp json file')]
+            dataset_dicts = [json.loads(json_object) for json_object in tqdm(yelp_json_file.readlines()[:1000], desc='read yelp json file')]
         else:
             dataset_dicts = json.load(yelp_json_file)
             review_dicts = dataset_dicts['reviews']

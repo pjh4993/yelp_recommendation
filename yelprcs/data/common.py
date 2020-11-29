@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 import random
 import torch.utils.data as data
+from collections import defaultdict
 
 from ..utils import PicklableWrapper
 
@@ -37,7 +38,7 @@ class MapDataset(data.Dataset):
         cur_idx = int(idx)
 
         while True:
-            data = self._map_func(self._dataset[cur_idx], idx)
+            data = self._map_func(self._dataset[cur_idx])
             if data is not None:
                 self._fallback_candidates.add(cur_idx)
                 return data
