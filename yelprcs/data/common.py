@@ -37,7 +37,7 @@ class MapDataset(data.Dataset):
         cur_idx = int(idx)
 
         while True:
-            data = self._map_func(self._dataset[cur_idx])
+            data = self._map_func(self._dataset[cur_idx], idx)
             if data is not None:
                 self._fallback_candidates.add(cur_idx)
                 return data

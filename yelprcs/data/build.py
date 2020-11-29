@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import torch.utils.data
 import os
- 
+
 from .common import DatasetFromList, MapDataset
 from .samplers import InferenceSampler, TrainingSampler
 from ..utils import seed_all_rng
@@ -28,7 +28,7 @@ __all__ = [
 ]
 
 def get_yelp_dataset_dicts(
-    cfg, is_train=True 
+    cfg, is_train=True
 ):
     yelp_json_root = os.path.join(cfg.DATA_ROOT, cfg.DATA_JSON)
     split_id = os.path.join(cfg.DATA_ROOT, 'train.txt' if is_train else 'test.txt') if cfg.IS_PREPROCESSED is True else None
@@ -119,7 +119,7 @@ def build_yelp_train_loader(cfg, mapper=lambda x : x):
     logger.info("Using training sampler {}".format(sampler_name))
     # TODO avoid if-else?
     sampler = TrainingSampler(len(dataset))
-    
+
     return build_batch_data_loader(
         dataset,
         sampler,

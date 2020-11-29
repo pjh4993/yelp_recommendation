@@ -7,5 +7,5 @@ class DatasetMapper:
     ):
         return NotImplementedError
 
-    def __call__(self, dataset_dict):
+    def __call__(self, dataset_dict, idx):
         return NotImplementedError

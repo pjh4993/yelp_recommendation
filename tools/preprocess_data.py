@@ -7,6 +7,7 @@ from tqdm import tqdm
 import os
 import json
 import torch
+from collections import defaultdict
 
 
 def argument_parser(epilog=None):
@@ -16,7 +17,7 @@ def argument_parser(epilog=None):
 Examples:
 
 Run on single machine:
-    $ {sys.argv[0]} --config-file configs/Base-config.yaml --opts 
+    $ {sys.argv[0]} --config-file configs/Base-config.yaml --opts
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -31,11 +32,41 @@ class YelpPreprocessMapper(DatasetMapper):
         self.is_train = cfg.IS_TRAIN
         self.attrib_dict = cfg.DATASET_MAPPER.ATTRIB_DICT
         self.hook = hook
-    
-    def __call__(self, dataset_dict):
+        self.memory = {'whole_mean':0.0,
+                       'hash_to_int': {},
+                       'id_to_instance': {},
+                       'reviews':[]}
+        for attrib in self.attrib_dict:
+            if attrib == 'stars':
+                continue
+            self.memory['hash_to_int'][attrib] = {}
+            self.memory['id_to_instance'][attrib] = defaultdict(list)
+
+
+    def __call__(self, dataset_dict, idx):
         dataset_dict = {k : v for k,v in dataset_dict.items() if k in self.attrib_dict}
+        self.hook(dataset_dict, idx, self.attrib_dict, self.memory)
+        print('idx: ', idx)
+        print(self.memory)
         return dataset_dict
 
+def change_hash_to_int(dataset_dict, idx, attrib_names, memory):
+    for attrib in attrib_names:
+        if attrib == 'stars':
+            memory['whole_mean'] += dataset_dict['stars']
+            continue
+        hash_id = dataset_dict[attrib]
+        if hash_id not in memory['hash_to_int'][attrib]:
+            _id = len(memory['hash_to_int'][attrib])
+            memory['hash_to_int'][attrib][hash_id] = _id
+
+        _id = memory['hash_to_int'][attrib][hash_id]
+        dataset_dict[attrib] = _id
+
+        memory['id_to_instance'][attrib][_id].append(idx)
+    memory['reviews'].append(dataset_dict)
+
+"""
 def change_hash_to_int_id(dataset_dicts, attrib_names, split_attrib):
     attrib_idx_alloc = {}
     train_split = []
@@ -64,37 +95,38 @@ def change_hash_to_int_id(dataset_dicts, attrib_names, split_attrib):
         dataset_dicts[_id] = x
 
     return dataset_dicts, attrib_idx_alloc , {'train': train_split, 'valid':valid_split}
+"""
 
 def main(args):
     cfg = setup(args)
-    preprocess_mapper = YelpPreprocessMapper(cfg, None)
+    preprocess_mapper = YelpPreprocessMapper(cfg, change_hash_to_int)
     data_loader = build_yelp_test_loader(cfg, preprocess_mapper)
 
     processed_items = []
     for idx, inputs in enumerate(tqdm(data_loader, desc='only extract attrib in dataset')):
-        processed_items.append(inputs[0])
+        print('idx: ', idx)
+        print(data_loader.memory)
         break
 
-    processed_items , hash_to_idx, split_idx = change_hash_to_int_id(processed_items, ['user_id', 'business_id'], 'user_id')
+    #split_idx = change_hash_to_int_id(processed_items, ['user_id', 'business_id'], 'user_id')
 
-    processed_dataset = {}
-    processed_dataset['reviews'] = processed_items
-    processed_dataset['hash_to_idx'] = hash_to_idx
-    processed_dataset['statistics'] = {
-        ''
-    }
+    processed_dataset = preprocess_mapper.memory
+    print(processed_dataset)
+    hash_to_idx = processed_dataset['hash_to_int']
 
     with open(os.path.join(cfg.DATA_ROOT, 'processed_yelp_dataset_review.json'),'w') as fp:
         json.dump(processed_dataset, fp)
-    
+
     for k, v in hash_to_idx.items():
         print(k, len(v))
-    
+
+    """
     for k,v in split_idx.items():
         print(k, len(v))
         with open(os.path.join(cfg.DATA_ROOT, k+'.txt'), 'w') as sp:
             v = [str(x) for x in v]
             sp.write('\n'.join(v))
+    """
 
 
 if __name__ == '__main__':
