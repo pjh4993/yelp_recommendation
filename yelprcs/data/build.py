@@ -32,7 +32,7 @@ def get_yelp_dataset_dicts(
     cfg, is_train=True
 ):
     yelp_json_root = os.path.join(cfg.DATA_ROOT, cfg.DATA_JSON)
-    split_id = os.path.join(cfg.DATA_ROOT, 'train.txt' if is_train else 'test.txt') if cfg.IS_PREPROCESSED is True else None
+    split_id = os.path.join(cfg.DATA_ROOT, 'train.txt' if is_train else 'valid.txt') if cfg.IS_PREPROCESSED is True else None
     dataset_dicts = None
 
     with open(yelp_json_root, 'r') as yelp_json_file:
@@ -130,13 +130,15 @@ def build_yelp_train_loader(cfg, mapper=None):
     )
 
 
-def build_yelp_test_loader(cfg, mapper):
+def build_yelp_test_loader(cfg, mapper=None):
     dataset_dicts = get_yelp_dataset_dicts(
         cfg, is_train=False
     )
 
     dataset = DatasetFromList(dataset_dicts)
 
+    if mapper is None:
+        mapper = lambda x: x
     dataset = MapDataset(dataset, mapper)
 
     sampler = InferenceSampler(len(dataset))
