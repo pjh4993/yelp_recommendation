@@ -19,9 +19,10 @@ class YelpCheckpointer:
         if weight is not None:
             checkpoint = torch.load(weight)
             self.model.load_state_dict(checkpoint['model_state_dict'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.scheduler.load_state_dict(checkpoint['scheduler_dict'])
-            self.iteration = checkpoint['iteration']
+            if resume:
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                self.scheduler.load_state_dict(checkpoint['scheduler_dict'])
+                self.iteration = checkpoint['iteration']
 
     def save_model(self, curr_iter):
         self.iteration = curr_iter

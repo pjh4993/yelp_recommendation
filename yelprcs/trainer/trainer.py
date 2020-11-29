@@ -1,5 +1,5 @@
 import os
-from ..evaluation import YelpEvaluator
+from ..evaluation import YelpEvaluator, inference_on_dataset
 from ..utils import setup_logger, comm
 from ..checkpoint import YelpCheckpointer
 from .train_loop import SimpleTrainer
@@ -111,6 +111,7 @@ class YelpTrainer(SimpleTrainer):
         """
         super().train(self.start_iter, self.max_iter)
 
+    @classmethod
     def build_model(cls, cfg):
         """
         Returns:
@@ -145,16 +146,18 @@ class YelpTrainer(SimpleTrainer):
 
         return build_yelp_train_loader(cfg)
 
+    @classmethod
     def build_test_loader(cls, cfg):
-        
         return build_yelp_test_loader(cfg)
 
-    def build_evaluator(cls, cfg, distributed,output_folder=None):
+    @classmethod
+    def build_evaluator(cls, cfg, distributed=False,output_folder=None):
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         return YelpEvaluator(cfg, distributed=distributed, output_folder=output_folder)
 
-    def test(cls, cfg, model, evaluators=None):
+    @classmethod
+    def test(cls, cfg, model):
         """
         Args:
             cfg (CfgNode):
@@ -166,45 +169,18 @@ class YelpTrainer(SimpleTrainer):
         Returns:
             dict: a dict of result metrics
         """
-        """
-        logger = logging.getLogger(__name__)
-        if isinstance(evaluators, DatasetEvaluator):
-            evaluators = [evaluators]
-        if evaluators is not None:
-            assert len(cfg.DATASETS.TEST) == len(evaluators), "{} != {}".format(
-                len(cfg.DATASETS.TEST), len(evaluators)
+        data_loader = cls.build_test_loader(cfg)
+        evaluator = cls.build_evaluator(cfg)
+        result = inference_on_dataset(model, data_loader, evaluator)
+
+        if comm.is_main_process():
+            assert isinstance(
+                result, dict
+            ), "Evaluator must return a dict on the main process. Got {} instead.".format(
+                result
             )
+            #print_csv_format(result)
 
-        results = OrderedDict()
-        for idx, dataset_name in enumerate(cfg.DATASETS.TEST):
-            data_loader = cls.build_test_loader(cfg, dataset_name)
-            # When evaluators are passed in as arguments,
-            # implicitly assume that evaluators can be created before data_loader.
-            if evaluators is not None:
-                evaluator = evaluators[idx]
-            else:
-                try:
-                    evaluator = cls.build_evaluator(cfg, dataset_name)
-                except NotImplementedError:
-                    logger.warn(
-                        "No evaluator found. Use `DefaultTrainer.test(evaluators=)`, "
-                        "or implement its `build_evaluator` method."
-                    )
-                    results[dataset_name] = {}
-                    continue
-            results_i = inference_on_dataset(model, data_loader, evaluator)
-            results[dataset_name] = results_i
-            if comm.is_main_process():
-                assert isinstance(
-                    results_i, dict
-                ), "Evaluator must return a dict on the main process. Got {} instead.".format(
-                    results_i
-                )
-                logger.info("Evaluation results for {} in csv format:".format(dataset_name))
-                print_csv_format(results_i)
-
-        if len(results) == 1:
-            results = list(results.values())[0]
-        return results
-        """
-        pass
+        if len(result) == 1:
+            result = list(result.values())[0]
+        return result
