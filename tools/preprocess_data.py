@@ -16,7 +16,7 @@ def argument_parser(epilog=None):
 Examples:
 
 Run on single machine:
-    $ {sys.argv[0]} --config-file configs/Base-config.yaml --opts 
+    $ {sys.argv[0]} --config-file configs/Base-config.yaml --opts
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -31,7 +31,7 @@ class YelpPreprocessMapper(DatasetMapper):
         self.is_train = cfg.IS_TRAIN
         self.attrib_dict = cfg.DATASET_MAPPER.ATTRIB_DICT
         self.hook = hook
-    
+
     def __call__(self, dataset_dict):
         dataset_dict = {k : v for k,v in dataset_dict.items() if k in self.attrib_dict}
         return dataset_dict
@@ -44,18 +44,23 @@ def change_hash_to_int_id(dataset_dicts, attrib_names, split_attrib):
     for attrib in attrib_names:
         attrib_id = np.array([x[attrib] for x in dataset_dicts])
         unique_attrib_id = np.unique(attrib_id)
-        attrib_idx_alloc[attrib]={hash_id: int(int_id) for hash_id, int_id in zip(unique_attrib_id,np.arange(len(unique_attrib_id)))}
+        attrib_idx_alloc[attrib]={int(int_id):hash_id  for hash_id, int_id in zip(unique_attrib_id,np.arange(len(unique_attrib_id)))}
 
-        if attrib == split_attrib:
-            for unique_id in unique_attrib_id:
-                instances = (attrib_id == unique_id).nonzero()[0]
-                np.random.shuffle(instances)
-                num_train = int(0.7 * len(instances))
-                if num_train == 0:
-                    num_train += 1
+        unique_attrib_mean = {}
+        for unique_id in unique_attrib_id:
+            instances = (attrib_id == unique_id).nonzero()[0]
+            np.random.shuffle(instances)
+
+            num_train = int(0.7 * len(instances))
+            if num_train == 0:
+                num_train += 1
+            if attrib == split_attrib:
                 train_split.extend(instances[:num_train])
                 valid_split.extend(instances[num_train:])
                 len_instances.append(len(instances))
+            instances = instances[:num_train]
+            unique_mean = np.array([x['stars']for x in dataset_dicts[instances]])
+            unique_attrib_mean[unique_id] = unique_mean
 
     print(np.array(len_instances).mean())
     for _id, x in enumerate(dataset_dicts):
@@ -63,7 +68,7 @@ def change_hash_to_int_id(dataset_dicts, attrib_names, split_attrib):
             x[k] = v[x[k]]
         dataset_dicts[_id] = x
 
-    return dataset_dicts, attrib_idx_alloc , {'train': train_split, 'valid':valid_split}
+    return dataset_dicts, attrib_idx_alloc , {'train': train_split, 'valid':valid_split}, unique_attrib_mean
 
 def main(args):
     cfg = setup(args)
@@ -73,23 +78,26 @@ def main(args):
     processed_items = []
     for idx, inputs in enumerate(tqdm(data_loader, desc='only extract attrib in dataset')):
         processed_items.append(inputs[0])
-        break
 
-    processed_items , hash_to_idx, split_idx = change_hash_to_int_id(processed_items, ['user_id', 'business_id'], 'user_id')
+    processed_items , hash_to_idx, split_idx, mean_dict = change_hash_to_int_id(processed_items, ['user_id', 'business_id'], 'user_id')
 
     processed_dataset = {}
     processed_dataset['reviews'] = processed_items
     processed_dataset['hash_to_idx'] = hash_to_idx
     processed_dataset['statistics'] = {
-        ''
+        'user_size': len(hash_to_idx['user_id']),
+        'user_mean': mean_dict['user_id'],
+        'item_size': len(hash_to_idx['business_id']),
+        'item_mean': mean_dict['business_id'],
+        'whole_mean':
     }
 
     with open(os.path.join(cfg.DATA_ROOT, 'processed_yelp_dataset_review.json'),'w') as fp:
         json.dump(processed_dataset, fp)
-    
+
     for k, v in hash_to_idx.items():
         print(k, len(v))
-    
+
     for k,v in split_idx.items():
         print(k, len(v))
         with open(os.path.join(cfg.DATA_ROOT, k+'.txt'), 'w') as sp:
