@@ -7,6 +7,9 @@ IS_PREPROCESSED: False
 DATASET_MAPPER:
   ATTRIB_DICT: ['user_id', 'business_id', 'stars']
 DATALOADER:
-  NUM_WORKERS: 24
+  NUM_WORKERS: 1
 MODEL:
   NAME: 'NaiveCF'
+DATASET:
+  TRAIN: 'train'
+  TEST: 'valid'

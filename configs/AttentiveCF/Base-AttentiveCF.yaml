@@ -1,4 +1,4 @@
-OUTPUT_DIR: "yelp_recommendation/output/NaiveCF"
+OUTPUT_DIR: "yelp_recommendation/output/AttentiveCF"
 DATA_ROOT: "yelp_recommendation/datasets/"
 #DATA_JSON: "yelp_academic_dataset_review.json"
 DATA_JSON: "processed_yelp_dataset_review.json"
@@ -8,15 +8,15 @@ IS_PREPROCESSED: True
 DATASET_MAPPER:
   ATTRIB_DICT: ['user_id', 'business_id', 'stars']
 MODEL:
-  NAME: 'NaiveCF'
+  NAME: 'AttentiveCF'
   CF:
-    LATENT_SIZE: 100
+    LATENT_SIZE: 5
 STATISTICS:
   USER_SIZE: 252898
   ITEM_SIZE: 41958
 SOLVER:
   #REVIEW_PER_BATCH: 512
-  BASE_LR : 0.1
+  BASE_LR : 0.01
 DATASET:
   TRAIN: 'train'
   TEST: 'valid'

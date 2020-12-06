@@ -130,7 +130,7 @@ class TrainerBase:
 
         self.iter = self.start_iter = start_iter
         self.max_iter = max_iter
-
+ 
         #with EventStorage(start_iter) as self.storage:
         try:
             self.before_train()
@@ -238,6 +238,7 @@ class SimpleTrainer(TrainerBase):
         ) if losses.device.type == "cuda" else _nullcontext():
             metrics_dict = loss_dict
             metrics_dict["data_time"] = data_time
+            self.metrics_dict = metrics_dict
             #self._write_metrics(metrics_dict)
             self._detect_anomaly(losses, loss_dict)
 
@@ -255,32 +256,3 @@ class SimpleTrainer(TrainerBase):
                     self.iter, loss_dict
                 )
             )
-
-    """
-    def _write_metrics(self, metrics_dict: dict):
-        metrics_dict = {
-            k: v.detach().cpu().item() if isinstance(v, torch.Tensor) else float(v)
-            for k, v in metrics_dict.items()
-        }
-        # gather metrics among all workers for logging
-        # This assumes we do DDP-style training, which is currently the only
-        # supported method in detectron2.
-        all_metrics_dict = comm.gather(metrics_dict)
-
-        if comm.is_main_process():
-            if "data_time" in all_metrics_dict[0]:
-                # data_time among workers can have high variance. The actual latency
-                # caused by data_time is the maximum among workers.
-                data_time = np.max([x.pop("data_time") for x in all_metrics_dict])
-                self.storage.put_scalar("data_time", data_time)
-
-            # average the rest metrics
-            metrics_dict = {
-                k: np.mean([x[k] for x in all_metrics_dict]) for k in all_metrics_dict[0].keys()
-            }
-            total_losses_reduced = sum(loss for loss in metrics_dict.values())
-
-            self.storage.put_scalar("total_loss", total_losses_reduced)
-            if len(metrics_dict) > 1:
-                self.storage.put_scalars(**metrics_dict)
-    """

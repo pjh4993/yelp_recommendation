@@ -1,10 +1,10 @@
 import os
-from ..evaluation import YelpEvaluator
+from ..evaluation import YelpEvaluator, inference_on_dataset
 from ..utils import setup_logger, comm
 from ..checkpoint import YelpCheckpointer
 from .train_loop import SimpleTrainer
 from ..data import build_yelp_train_loader, build_yelp_test_loader
-from .hooks import LRScheduler, PeriodicCheckpointer, EvalHook
+from .hooks import LRScheduler, PeriodicCheckpointer, EvalHook, PeriodicWriter
 from ..model import build_model
 from ..solver import build_optimizer, build_lr_scheduler
 import logging
@@ -44,7 +44,8 @@ class YelpTrainer(SimpleTrainer):
             scheduler=self.scheduler,
         )
         self.start_iter = 0
-        self.max_iter = cfg.SOLVER.MAX_ITER
+        #self.max_iter = cfg.SOLVER.MAX_ITER
+        self.max_iter = int(len(data_loader.dataset) / cfg.SOLVER.REVIEW_PER_BATCH) * 5
         self.cfg = cfg
 
         self.register_hooks(self.build_hooks())
@@ -97,36 +98,10 @@ class YelpTrainer(SimpleTrainer):
         # Do evaluation after checkpointer, because then if it fails,
         # we can use the saved checkpoint to debug.
         ret.append(EvalHook(cfg.TEST.EVAL_PERIOD, test_and_save_results))
+        if comm.is_main_process():
+            # run writers in the end, so that evaluation metrics are written
+            ret.append(PeriodicWriter(period=20))
         return ret
-
-    def build_writers(self):
-        """
-        Build a list of writers to be used. By default it contains
-        writers that write metrics to the screen,
-        a json file, and a tensorboard event file respectively.
-        If you'd like a different list of writers, you can overwrite it in
-        your trainer.
-
-        Returns:
-            list[EventWriter]: a list of :class:`EventWriter` objects.
-
-        It is now implemented by:
-        ::
-            return [
-                CommonMetricPrinter(self.max_iter),
-                JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-                TensorboardXWriter(self.cfg.OUTPUT_DIR),
-            ]
-
-        # Here the default print/log frequency of each writer is used.
-        return [
-            # It may not always print what you want to see, since it prints "common" metrics only.
-            CommonMetricPrinter(self.max_iter),
-            JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-            TensorboardXWriter(self.cfg.OUTPUT_DIR),
-        ]
-        """
-        pass
 
     def train(self):
         """
@@ -137,6 +112,7 @@ class YelpTrainer(SimpleTrainer):
         """
         super().train(self.start_iter, self.max_iter)
 
+    @classmethod
     def build_model(cls, cfg):
         """
         Returns:
@@ -171,16 +147,18 @@ class YelpTrainer(SimpleTrainer):
 
         return build_yelp_train_loader(cfg)
 
+    @classmethod
     def build_test_loader(cls, cfg):
-        
         return build_yelp_test_loader(cfg)
 
-    def build_evaluator(cls, cfg, distributed,output_folder=None):
+    @classmethod
+    def build_evaluator(cls, cfg, statistics=None ,distributed=False,output_folder=None):
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
-        return YelpEvaluator(cfg, distributed=distributed, output_folder=output_folder)
+        return YelpEvaluator(cfg, statistics, distributed=distributed, output_folder=output_folder)
 
-    def test(cls, cfg, model, evaluators=None):
+    @classmethod
+    def test(cls, cfg, model):
         """
         Args:
             cfg (CfgNode):
@@ -192,45 +170,18 @@ class YelpTrainer(SimpleTrainer):
         Returns:
             dict: a dict of result metrics
         """
-        """
-        logger = logging.getLogger(__name__)
-        if isinstance(evaluators, DatasetEvaluator):
-            evaluators = [evaluators]
-        if evaluators is not None:
-            assert len(cfg.DATASETS.TEST) == len(evaluators), "{} != {}".format(
-                len(cfg.DATASETS.TEST), len(evaluators)
+        data_loader, statistics = cls.build_test_loader(cfg)
+        evaluator = cls.build_evaluator(cfg, statistics)
+        result = inference_on_dataset(model, data_loader, evaluator)
+
+        if comm.is_main_process():
+            assert isinstance(
+                result, dict
+            ), "Evaluator must return a dict on the main process. Got {} instead.".format(
+                result
             )
+            #print_csv_format(result)
 
-        results = OrderedDict()
-        for idx, dataset_name in enumerate(cfg.DATASETS.TEST):
-            data_loader = cls.build_test_loader(cfg, dataset_name)
-            # When evaluators are passed in as arguments,
-            # implicitly assume that evaluators can be created before data_loader.
-            if evaluators is not None:
-                evaluator = evaluators[idx]
-            else:
-                try:
-                    evaluator = cls.build_evaluator(cfg, dataset_name)
-                except NotImplementedError:
-                    logger.warn(
-                        "No evaluator found. Use `DefaultTrainer.test(evaluators=)`, "
-                        "or implement its `build_evaluator` method."
-                    )
-                    results[dataset_name] = {}
-                    continue
-            results_i = inference_on_dataset(model, data_loader, evaluator)
-            results[dataset_name] = results_i
-            if comm.is_main_process():
-                assert isinstance(
-                    results_i, dict
-                ), "Evaluator must return a dict on the main process. Got {} instead.".format(
-                    results_i
-                )
-                logger.info("Evaluation results for {} in csv format:".format(dataset_name))
-                print_csv_format(results_i)
-
-        if len(results) == 1:
-            results = list(results.values())[0]
-        return results
-        """
-        pass
+        if len(result) == 1:
+            result = list(result.values())[0]
+        return result
