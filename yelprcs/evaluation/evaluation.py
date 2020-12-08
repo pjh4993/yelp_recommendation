@@ -49,10 +49,10 @@ class YelpEvaluator:
         return {'table': result, 'header': header} ,tabulate(result, header, tablefmt="github")
 
     def process(self, input, output):
-        stars = np.array([x['stars'] for x in input])
-        self.user_num.extend([self.statistics['user_num'][x['user_id']] for x in input])
-        self.business_num.extend([self.statistics['business_num'][x['business_id']] for x in input])
-        self.rmse.extend(((stars - output) ** 2).tolist())
+        stars = np.array([x[1] for x in input])
+        self.user_num.extend([self.statistics['user_num'][x[0]] for x in input])
+        self.business_num.extend([self.statistics['business_num'][x[2]] for x in input])
+        self.rmse.extend(((stars - output.flatten()) ** 2).tolist())
 
 
 @contextmanager
@@ -98,7 +98,7 @@ def inference_on_dataset(model, data_loader, evaluator):
     num_warmup = min(5, total - 1)
     with inference_context(model), torch.no_grad():
         for idx, inputs in enumerate(tqdm(data_loader, desc="processing input")):
-            outputs = model(inputs)
+            outputs = model([inputs])
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             evaluator.process(inputs, outputs)

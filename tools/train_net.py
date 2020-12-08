@@ -6,7 +6,7 @@ from ..yelprcs.trainer import YelpTrainer
 
 
 def main(args):
-    cfg = setup(args)
+    cfg, logger = setup(args)
  
     if args.eval_only:
         model = YelpTrainer.build_model(cfg)
@@ -20,7 +20,7 @@ def main(args):
     trainer.resume_or_load(resume=args.resume)
 
     return trainer.train()
-
+ 
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()

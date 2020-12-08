@@ -31,7 +31,7 @@ class _ColorfulFormatter(logging.Formatter):
 
 @functools.lru_cache()  # so that calling setup_logger multiple times won't add many handlers
 def setup_logger(
-    output=None, distributed_rank=0, *, color=True, name="yelprcs", abbrev_name=None
+    output=None, distributed_rank=0, *, color=True, name="yelprcs", abbrev_name=None, no_add=False
 ):
     """
     Initialize the yelprcs logger and set its verbosity level to "DEBUG".

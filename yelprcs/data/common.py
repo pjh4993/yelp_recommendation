@@ -28,23 +28,30 @@ class MapDataset(data.Dataset):
         self._map_func = PicklableWrapper(map_func)  # wrap so that a lambda will work
 
         self._rng = random.Random(42)
-        self._fallback_candidates = set(range(len(dataset)))
+        self._fallback_candidates = [set(range(x)) for x in dataset.__len__()]
 
     def __len__(self):
-        return len(self._dataset)
+        return self._dataset.__len__()
 
     def __getitem__(self, idx):
         retry_count = 0
-        cur_idx = int(idx)
 
         while True:
-            data = self._map_func(self._dataset[cur_idx])
+            if isinstance(idx, int):
+                data = self._map_func(self._dataset.__getitem__(0, idx))
+            else:
+                data = [self._map_func(self._dataset.__getitem__(row, x)) for row, x in enumerate(idx.tolist())]
+            """
             if data is not None:
-                self._fallback_candidates.add(cur_idx)
+                for row, x in enumerate(idx):
+                    self._fallback_candidates[row].add(x)
+            """
+            if data is not None:
                 return data
 
             # _map_func fails for this idx, use a random new index from the pool
             retry_count += 1
+            """
             self._fallback_candidates.discard(cur_idx)
             cur_idx = self._rng.sample(self._fallback_candidates, k=1)[0]
 
@@ -55,6 +62,7 @@ class MapDataset(data.Dataset):
                         idx, retry_count
                     )
                 )
+            """
 
 
 class DatasetFromList(data.Dataset):
@@ -88,25 +96,56 @@ class DatasetFromList(data.Dataset):
                     len(self._lst)
                 )
             )
-            self._lst = [_serialize(x) for x in self._lst]
-            self._addr = np.asarray([len(x) for x in self._lst], dtype=np.int64)
-            self._addr = np.cumsum(self._addr)
-            self._lst = np.concatenate(self._lst)
-            logger.info("Serialized dataset takes {:.2f} MiB".format(len(self._lst) / 1024 ** 2))
+            lst_list = []
+            addr_list = []
+            for i in range(len(lst)):
+                curr_lst = [_serialize(x) for x in self._lst[i]]
+                curr_addr = np.asarray([len(x) for x in curr_lst], dtype=np.int64)
+                curr_addr = np.cumsum(curr_addr)
+                curr_lst = np.concatenate(curr_lst)
+                logger.info("Serialized dataset takes {:.2f} MiB".format(len(curr_lst) / 1024 ** 2))
+                lst_list.append(curr_lst)
+                addr_list.append(curr_addr)
+
+            self._lst = lst_list
+            self._addr = addr_list
+
 
     def __len__(self):
         if self._serialize:
-            return len(self._addr)
+            return [len(x) for x in self._addr]
         else:
-            return len(self._lst)
+            return [len(x) for x in self._lst]
 
-    def __getitem__(self, idx):
+    def __getitem__(self, row, idx):
         if self._serialize:
-            start_addr = 0 if idx == 0 else self._addr[idx - 1].item()
-            end_addr = self._addr[idx].item()
-            bytes = memoryview(self._lst[start_addr:end_addr])
+            start_addr = 0 if idx == 0 else self._addr[row][idx - 1].item()
+            end_addr = self._addr[row][idx].item()
+            bytes = memoryview(self._lst[row][start_addr:end_addr])
             return pickle.loads(bytes)
         elif self._copy:
-            return copy.deepcopy(self._lst[idx])
+            return copy.deepcopy(self._lst[row][idx])
         else:
-            return self._lst[idx]
+            return self._lst[row][idx]
+
+class StarGroupedDataset(data.IterableDataset):
+
+    def __init__(self, dataset, batch_size):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self._buckets = [[] for _ in range(5)]
+        # Can add support for more aspect ratio groups, but doesn't seem useful
+
+    def __iter__(self):
+        for d in self.dataset:
+            star = d[0][1]
+            bucket = self._buckets[star-1]
+            bucket.extend(d)
+            min_len = min([len(x) for x in self._buckets])
+            if min_len == self.batch_size:
+                out = []
+                for x in self._buckets:
+                    out.extend(x[:self.batch_size])
+                    x = x[self.batch_size:]
+                yield out
+                del bucket[:]

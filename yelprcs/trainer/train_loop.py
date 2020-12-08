@@ -222,7 +222,7 @@ class SimpleTrainer(TrainerBase):
         """
         If you want to do something with the losses, you can wrap the model.
         """
-        loss_dict = self.model(data)
+        loss_dict, eval_result = self.model(data)
         losses = sum(loss_dict.values())
 
         """
@@ -238,6 +238,7 @@ class SimpleTrainer(TrainerBase):
         ) if losses.device.type == "cuda" else _nullcontext():
             metrics_dict = loss_dict
             metrics_dict["data_time"] = data_time
+            metrics_dict["eval_result"] = eval_result
             self.metrics_dict = metrics_dict
             #self._write_metrics(metrics_dict)
             self._detect_anomaly(losses, loss_dict)

@@ -29,7 +29,6 @@ class TrainingSampler(Sampler):
                 among workers (require synchronization among all workers).
         """
         self._size = size
-        assert size > 0
         self._shuffle = shuffle
         if seed is None:
             seed = comm.shared_random_seed()
@@ -47,9 +46,11 @@ class TrainingSampler(Sampler):
         g.manual_seed(self._seed)
         while True:
             if self._shuffle:
-                yield from torch.randperm(self._size, generator=g)
+                generator = torch.cat([torch.randperm(max(self._size), generator=g).reshape(1,-1) % x for x in self._size], dim=0).t()
             else:
-                yield from torch.arange(self._size)
+                generator = torch.cat([torch.arange(max(self._size)).reshape(1,-1) % x for x in self._size], dim=0).t()
+
+            yield from generator
 
 
 class InferenceSampler(Sampler):
@@ -65,8 +66,8 @@ class InferenceSampler(Sampler):
         Args:
             size (int): the total number of data of the underlying dataset to sample from
         """
-        self._size = size
-        assert size > 0
+        self._size = size[0]
+        assert size[0] > 0
         self._rank = comm.get_rank()
         self._world_size = comm.get_world_size()
 

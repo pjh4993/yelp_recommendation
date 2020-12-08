@@ -40,6 +40,8 @@ class YelpPreprocessMapper(DatasetMapper):
         return dataset_dict
 
 def change_hash_to_int(dataset_dicts, attrib_names, memory):
+    check_dup = defaultdict(bool)
+    drop_id_list = set()
     for d_id, dataset_dict in enumerate(dataset_dicts):
         for attrib in attrib_names:
             if attrib == 'stars':
@@ -53,18 +55,28 @@ def change_hash_to_int(dataset_dicts, attrib_names, memory):
             dataset_dict[attrib] = _id
 
             memory['id_to_instance'][attrib][_id].append(d_id)
+        if check_dup[(dataset_dict[attrib_names[0]], dataset_dict[attrib_names[1]])]:
+            drop_id_list.add(d_id)
+        else:
+            check_dup[(dataset_dict[attrib_names[0]], dataset_dict[attrib_names[1]])] = True
         memory['reviews'].append(dataset_dict)
-    return memory
+    
+    for bid, instance_id in memory['id_to_instance']['business_id'].items():
+        if len(instance_id) < 20:
+            drop_id_list.add(instance_id[0])
+    
+    return memory , drop_id_list
 
-def split_dataset(processed_dataset, split_attrib):
+def split_dataset(processed_dataset, split_attrib, drop_id_list):
     train_split = []
     valid_split = []
     instance_per_attrib = processed_dataset['id_to_instance'][split_attrib]
     for _id, instances in tqdm(instance_per_attrib.items(), desc='split'):
+        instances = [x for x in instances if x not in drop_id_list]
+        if len(instances) < 20:
+            continue
         np.random.shuffle(instances)
         num_train = int(0.7 * len(instances))
-        if num_train == 0:
-            num_train += 1
         train_split.extend(instances[:num_train])
         valid_split.extend(instances[num_train:])
 
@@ -115,9 +127,9 @@ def main(args):
     for idx, inputs in enumerate(tqdm(data_loader, desc='only extract attrib in dataset')):
         processed_items.extend(inputs)
 
-    processed_dataset = change_hash_to_int(processed_items, ['user_id', 'business_id'], processed_dataset)
+    processed_dataset, drop_id_list = change_hash_to_int(processed_items, ['user_id', 'business_id'], processed_dataset)
 
-    split_idx = split_dataset(processed_dataset, 'user_id')
+    split_idx = split_dataset(processed_dataset, 'user_id', drop_id_list)
 
     processed_dataset['statistics'] = analysis_dataset(processed_dataset, split_idx['train'])
 

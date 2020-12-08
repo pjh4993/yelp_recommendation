@@ -5,7 +5,7 @@ import numpy as np
 import torch.utils.data
 import os
 
-from .common import DatasetFromList, MapDataset
+from .common import DatasetFromList, MapDataset, StarGroupedDataset
 from .samplers import InferenceSampler, TrainingSampler
 from ..utils import seed_all_rng
 import json
@@ -38,15 +38,23 @@ def get_yelp_dataset_dicts(
     with open(yelp_json_root, 'r') as yelp_json_file:
         if cfg.IS_PREPROCESSED is False:
             dataset_dicts = [json.loads(json_object) for json_object in tqdm(yelp_json_file.readlines(), desc='read yelp json file')]
+            dataset_dicts = [dataset_dicts]
         else:
             dataset_dicts = json.load(yelp_json_file)
             review_dicts = dataset_dicts['reviews']
             with open(split_id, 'r') as split_id_file:
-                dataset_dicts['reviews'] = [list(review_dicts[int(idx)].values()) for idx in split_id_file.readlines()]
+                split_id_list = [int(x[:-1]) for x in split_id_file.readlines()]
+                reviews = [[review_dicts[i]['user_id'], review_dicts[i]['stars'], review_dicts[i]['business_id']] for i in tqdm(split_id_list, desc="review")]
+                if is_train:
+                    #dataset_dicts['reviews'] = [reviews]
+                    dataset_dicts['reviews'] = [[] for _ in range(5)]
+                    for review_instance in reviews:
+                        dataset_dicts['reviews'][review_instance[1]-1].append(review_instance)
 
+                else:
+                    dataset_dicts['reviews'] = [reviews]
+                
     return dataset_dicts
-
-
 
 def build_batch_data_loader(
     dataset, sampler, total_batch_size, *, num_workers=0
@@ -76,6 +84,16 @@ def build_batch_data_loader(
     )
 
     batch_size = total_batch_size // world_size
+    """
+    return StarGroupedDataset(torch.utils.data.DataLoader(
+        dataset,
+        num_workers=num_workers,
+        sampler=sampler,
+        batch_sampler=None,
+        collate_fn=trivial_batch_collator,
+        worker_init_fn=worker_init_reset_seed,
+    ), batch_size)
+    """
     batch_sampler = torch.utils.data.sampler.BatchSampler(
         sampler, batch_size, drop_last=True
     )  # drop_last so the batch always have the same size
@@ -119,7 +137,7 @@ def build_yelp_train_loader(cfg, mapper=None):
         mapper = build_yelp_mapper(cfg, dataset_dicts['statistics'])
     dataset = MapDataset(dataset, mapper)
 
-    sampler = TrainingSampler(len(dataset))
+    sampler = TrainingSampler(dataset.__len__())
 
     return build_batch_data_loader(
         dataset,
@@ -140,7 +158,7 @@ def build_yelp_preprocess_loader(cfg, mapper=None):
 
     dataset = MapDataset(dataset, mapper)
 
-    sampler = InferenceSampler(len(dataset))
+    sampler = InferenceSampler(dataset.__len__()[0])
     #sampler = TrainingSampler(len(dataset))
     # Always use 1 image per worker during inference since this is the
     # standard when reporting inference time in papers.
@@ -166,7 +184,7 @@ def build_yelp_test_loader(cfg, mapper=None):
 
     dataset = MapDataset(dataset, mapper)
 
-    sampler = InferenceSampler(len(dataset))
+    sampler = InferenceSampler(dataset.__len__())
     #sampler = TrainingSampler(len(dataset))
     # Always use 1 image per worker during inference since this is the
     # standard when reporting inference time in papers.

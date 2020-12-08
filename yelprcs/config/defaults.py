@@ -48,6 +48,9 @@ def default_setup(cfg, args):
     # typical validation set.
     if not (hasattr(args, "eval_only") and args.eval_only):
         torch.backends.cudnn.benchmark = cfg.CUDNN_BENCHMARK
+    
+    return logger
+    
 
 def default_argument_parser(epilog=None):
     """
@@ -95,5 +98,5 @@ def setup(args):
     if hasattr(args, 'opts'):
         cfg.merge_from_list(args.opts)
     cfg.freeze()
-    default_setup(cfg, args)
-    return cfg
+    logger = default_setup(cfg, args)
+    return cfg, logger

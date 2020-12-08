@@ -3,7 +3,7 @@
 from collections import Counter
 import logging
 from ..checkpoint import YelpPeriodicCheckpointer
-from ..utils import comm
+from ..utils import comm, logger
 
 from .train_loop import HookBase
 
@@ -162,18 +162,18 @@ class PeriodicWriter(HookBase):
             period (int):
         """
         self._period = period
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger = logger.setup_logger(distributed_rank=1)
 
     def after_step(self):
         if (self.trainer.iter + 1) % self._period == 0 or (
             self.trainer.iter == self.trainer.max_iter - 1
         ):
             lr = self.trainer.optimizer.param_groups[0]['lr']
+            eval_result = self.trainer.metrics_dict["eval_result"]
             iteration = self.trainer.iter
             losses = self.trainer.metrics_dict
 
-            self.logger.warning(
+            self.logger.debug(
             "iter: {iter}/{max_iter}  {losses} lr: {lr:.5f}".format(
                 iter=iteration,
                 max_iter=self.trainer.max_iter,

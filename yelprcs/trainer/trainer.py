@@ -44,8 +44,7 @@ class YelpTrainer(SimpleTrainer):
             scheduler=self.scheduler,
         )
         self.start_iter = 0
-        #self.max_iter = cfg.SOLVER.MAX_ITER
-        self.max_iter = int(len(data_loader.dataset) / cfg.SOLVER.REVIEW_PER_BATCH) * 5
+        self.max_iter = max(cfg.SOLVER.MAX_ITER, int(sum(data_loader.dataset.__len__()) / cfg.SOLVER.REVIEW_PER_BATCH) * 10)
         self.cfg = cfg
 
         self.register_hooks(self.build_hooks())

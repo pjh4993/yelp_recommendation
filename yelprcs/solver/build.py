@@ -110,6 +110,7 @@ def build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Optimiz
     memo: Set[torch.nn.parameter.Parameter] = set()
     for module in model.modules():
         for key, value in module.named_parameters(recurse=False):
+            print(key)
             if not value.requires_grad:
                 continue
             # Avoid duplicating parameters
@@ -129,8 +130,13 @@ def build_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.Optimiz
                 weight_decay = cfg.SOLVER.WEIGHT_DECAY_BIAS
             params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
+    """
     optimizer = torch.optim.SGD(
         params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM, nesterov=cfg.SOLVER.NESTEROV
+    )
+    """
+    optimizer = torch.optim.SGD(
+        params
     )
     optimizer = maybe_add_gradient_clipping(cfg, optimizer)
     return optimizer
